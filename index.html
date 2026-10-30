@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Delhi Metro (DMRC) Revamped App</title>
+<style>
+:root{--bg:#cbd5e1;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f172a}}
+:root[data-theme="dark"]{--bg:#0f172a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body,#root{height:100%;margin:0}
+body{background:var(--bg)}
+.phone{height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
+@media (min-width:640px){.phone{height:780px;max-height:calc(100dvh - 48px)}}
+</style>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.383.0/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+"use strict";
+const { useState, useEffect, useMemo } = React;
+const mkIcon = (...names) => {
+    let n = names.map((k) => lucide.icons[k]).find(Boolean) || [];
+    if (n[0] === "svg")
+        n = n[2];
+    return ({ size = 24, className = "" }) => React.createElement("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", className }, n.map(([tag, attrs], i) => React.createElement(tag, { key: i, ...attrs })));
+};
+const Train = mkIcon("Train", "TramFront"), RouteIcon = mkIcon("Route"), ShieldAlert = mkIcon("ShieldAlert"), Accessibility = mkIcon("Accessibility"), Camera = mkIcon("Camera"), Phone = mkIcon("Phone"), Clock = mkIcon("Clock"), ArrowRight = mkIcon("ArrowRight"), CheckCircle2 = mkIcon("CheckCircle2", "CircleCheck", "CircleCheckBig"), X = mkIcon("X"), Repeat = mkIcon("Repeat"), Users = mkIcon("Users");
+const Y = ["Samaypur Badli", "Rohini Sec 18", "Haiderpur Badli Mor", "Jahangirpuri", "Adarsh Nagar", "Azadpur", "Model Town", "GTB Nagar", "Vishwavidyalaya", "Vidhan Sabha", "Civil Lines", "Kashmere Gate", "Chandni Chowk", "Chawri Bazar", "New Delhi", "Rajiv Chowk", "Patel Chowk", "Central Secretariat", "Udyog Bhawan", "Lok Kalyan Marg", "Jor Bagh", "INA", "AIIMS", "Green Park", "Hauz Khas", "Malviya Nagar", "Saket", "Qutab Minar", "Chhatarpur", "Sultanpur", "Ghitorni", "Arjan Garh", "Guru Dronacharya", "Sikandarpur", "MG Road", "IFFCO Chowk", "Millennium City Centre Gurugram"];
+const B = ["Dwarka Sec 21", "Dwarka Sec 8", "Dwarka Sec 9", "Dwarka Sec 10", "Dwarka Sec 11", "Dwarka Sec 12", "Dwarka Sec 13", "Dwarka Sec 14", "Dwarka", "Dwarka Mor", "Nawada", "Uttam Nagar West", "Uttam Nagar East", "Janakpuri West", "Janakpuri East", "Tilak Nagar", "Subhash Nagar", "Tagore Garden", "Rajouri Garden", "Ramesh Nagar", "Moti Nagar", "Kirti Nagar", "Shadipur", "Patel Nagar", "Rajendra Place", "Karol Bagh", "Jhandewalan", "RK Ashram Marg", "Rajiv Chowk", "Barakhamba Road", "Mandi House", "Supreme Court", "Indraprastha", "Yamuna Bank", "Akshardham", "Mayur Vihar-I", "Mayur Vihar Extension", "New Ashok Nagar", "Noida Sec 15", "Noida Sec 16", "Noida Sec 18", "Botanical Garden", "Golf Course", "Noida City Centre", "Noida Sec 34", "Noida Sec 52", "Noida Sec 61", "Noida Sec 59", "Noida Sec 62", "Noida Electronic City"];
+const V = ["Yamuna Bank", "Laxmi Nagar", "Nirman Vihar", "Preet Vihar", "Karkarduma", "Anand Vihar", "Kaushambi", "Vaishali"];
+const R = ["Rithala", "Rohini West", "Rohini East", "Pitampura", "Kohat Enclave", "Netaji Subhash Place", "Keshav Puram", "Kanhaiya Nagar", "Inderlok", "Shastri Nagar", "Pratap Nagar", "Pul Bangash", "Tis Hazari", "Kashmere Gate", "Shastri Park", "Seelampur", "Welcome", "Shahdara", "Mansarovar Park", "Jhilmil", "Dilshad Garden", "Shaheed Nagar", "Raj Bagh", "Major Mohit Sharma Rajendra Nagar", "Shyam Park", "Mohan Nagar", "Arthala", "Hindon River", "Shaheed Sthal"];
+const LINES = {
+    yellow: { label: "Yellow Line", code: "Y", hex: "#F2B705", stations: Y },
+    blue: { label: "Blue Line", code: "B", hex: "#1B5FC1", stations: B },
+    blue2: { label: "Blue Line (Vaishali)", code: "V", hex: "#3B82F6", stations: V },
+    red: { label: "Red Line", code: "R", hex: "#D32F2F", stations: R },
+};
+const HUBS = {};
+Object.keys(LINES).forEach((k) => LINES[k].stations.forEach((s) => (HUBS[s] = HUBS[s] || []).push(k)));
+const HUB = Object.keys(HUBS).filter((s) => HUBS[s].length > 1);
+const ALL = Object.keys(HUBS).sort();
+const CROWD = { green: ["bg-green-500", "Light"], yellow: ["bg-yellow-400", "Moderate"], red: ["bg-red-600", "Crowded"] };
+const STEP = 0.04; // stations per second
+const ROW = 40;
+const mkTrains = (k) => {
+    const m = LINES[k].stations.length - 1;
+    return [0.1, 0.35, 0.6, 0.85].map((p, i) => ({ id: LINES[k].code + (101 + i), pos: p * m, dir: i % 2 ? -1 : 1, crowd: ["green", "yellow", "red", "green"][i] }));
+};
+const fmt = (s) => `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
+const fare = (h) => 20 + 10 * Math.min(4, Math.floor((h - 1) / 3));
+const rnd = (a) => a[Math.floor(Math.random() * a.length)];
+// Finds every route with up to 3 changes, returns the best 3 by travel time
+function plan(o, d) {
+    if (!o || !d || o === d)
+        return [];
+    const out = [];
+    const walk = (st, k, legs, used) => {
+        const S = LINES[k].stations;
+        if (S.includes(d))
+            out.push([...legs, { k, a: st, b: d }]);
+        if (legs.length >= 3)
+            return;
+        S.forEach((x) => {
+            if (x !== st && x !== d && HUBS[x].length > 1)
+                HUBS[x].forEach((nk) => { if (!used.includes(nk))
+                    walk(x, nk, [...legs, { k, a: st, b: x }], [...used, nk]); });
+        });
+    };
+    HUBS[o].forEach((k) => walk(o, k, [], [k]));
+    const seen = new Set();
+    const rs = out
+        .filter((l) => { const key = l.map((x) => x.k + x.a + x.b).join("|"); return !seen.has(key) && seen.add(key); })
+        .map((legs) => {
+        const ls = legs.map((l) => { const S = LINES[l.k].stations, i = S.indexOf(l.a), j = S.indexOf(l.b); return { ...l, hops: Math.abs(i - j), toward: j > i ? S[S.length - 1] : S[0] }; });
+        const hops = ls.reduce((n, l) => n + l.hops, 0), changes = ls.length - 1;
+        return { legs: ls, hops, changes, fare: fare(hops), mins: Math.round(hops * 2.4) + 3 * changes };
+    })
+        .sort((a, b) => a.mins - b.mins)
+        .slice(0, 3);
+    const minC = Math.min(...rs.map((r) => r.changes));
+    rs.forEach((r, i) => {
+        r.tag = rs.length === 1 ? (r.changes ? "Interchange route" : "Direct route") : [i === 0 && "Fastest", r.changes === minC && "Fewest changes"].filter(Boolean).join(" and ") || "Alternative";
+    });
+    return rs;
+}
+const cls = "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600";
+const Field = ({ label, children }) => (React.createElement("label", { className: "block mb-3" },
+    React.createElement("span", { className: "block text-xs font-semibold text-slate-600 mb-1" }, label),
+    children));
+const Sel = ({ value, onChange, options }) => (React.createElement("select", { className: cls, value: value, onChange: (e) => onChange(e.target.value) }, options.map((o) => React.createElement("option", { key: o }, o))));
+function DelhiMetroApp() {
+    const [tab, setTab] = useState("track");
+    const [line, setLine] = useState("yellow");
+    const [trains, setTrains] = useState(() => Object.fromEntries(Object.keys(LINES).map((k) => [k, mkTrains(k)])));
+    const [watch, setWatch] = useState("Rajiv Chowk");
+    const [form, setForm] = useState({ line: "yellow", station: LINES.yellow.stations[0], coach: "Women’s Reserved Coach", no: "3", cat: "Men sitting in Women’s coach", photo: false });
+    const [incident, setIncident] = useState(null);
+    const [from, setFrom] = useState("Dwarka Sec 21");
+    const [to, setTo] = useState("Hauz Khas");
+    const routes = useMemo(() => plan(from, to), [from, to]);
+    const nextTrains = (leg) => {
+        const S = LINES[leg.k].stations, i = S.indexOf(leg.a), D = S.indexOf(leg.b) > i ? 1 : -1, max = S.length - 1;
+        return trains[leg.k]
+            .map((t) => {
+            if (t.dir === D)
+                return (i - t.pos) * D >= 0 ? { id: t.id, s: Math.ceil(Math.abs(i - t.pos) / STEP) } : null;
+            const e = t.dir === 1 ? max : 0;
+            return { id: t.id, s: Math.ceil((Math.abs(e - t.pos) + Math.abs(e - i)) / STEP) };
+        })
+            .filter(Boolean).sort((a, b) => a.s - b.s).slice(0, 3);
+    };
+    const [modal, setModal] = useState(false);
+    const [as, setAs] = useState({ station: "Rajiv Chowk", gate: "Gate 2", time: new Date().toTimeString().slice(0, 5), phone: "" });
+    const [asErr, setAsErr] = useState("");
+    const [pass, setPass] = useState(null);
+    // Resync with the server clock every 10 seconds
+    const [online, setOnline] = useState(false);
+    useEffect(() => {
+        let alive = true;
+        const pull = () => fetch("/api/trains").then((r) => r.json()).then((d) => { if (alive) {
+            setTrains(d);
+            setOnline(true);
+        } }).catch(() => alive && setOnline(false));
+        pull();
+        const t = setInterval(pull, 10000);
+        return () => { alive = false; clearInterval(t); };
+    }, []);
+    // Simulated telemetry (keeps trains moving between server updates)
+    useEffect(() => {
+        const t = setInterval(() => {
+            setTrains((all) => {
+                const out = {};
+                for (const k in all) {
+                    const max = LINES[k].stations.length - 1;
+                    out[k] = all[k].map((tr) => {
+                        let pos = tr.pos + tr.dir * STEP, dir = tr.dir;
+                        if (pos >= max) {
+                            pos = max;
+                            dir = -1;
+                        }
+                        if (pos <= 0) {
+                            pos = 0;
+                            dir = 1;
+                        }
+                        return { ...tr, pos, dir, crowd: Math.random() < 0.04 ? rnd(Object.keys(CROWD)) : tr.crowd };
+                    });
+                }
+                return out;
+            });
+        }, 1000);
+        return () => clearInterval(t);
+    }, []);
+    // Incident status: polled from the API
+    useEffect(() => {
+        if (!incident || !incident.remote || incident.step >= 3)
+            return;
+        const t = setInterval(() => {
+            fetch(`/api/incidents/${incident.id}`).then((r) => r.json()).then((d) => setIncident((i) => (i && i.id === d.id ? { ...i, step: d.step } : i))).catch(() => { });
+        }, 3000);
+        return () => clearInterval(t);
+    }, [incident?.id, incident?.step]);
+    // Fallback progression when offline
+    useEffect(() => {
+        if (!incident || incident.remote || incident.step >= 3)
+            return;
+        const t = setTimeout(() => setIncident((i) => ({ ...i, step: i.step + 1 })), 7000);
+        return () => clearTimeout(t);
+    }, [incident?.id, incident?.step]);
+    // Restore the last report and booking after a reload
+    useEffect(() => {
+        const get = (key, url, set) => {
+            const id = localStorage.getItem(key);
+            if (id)
+                fetch(`${url}/${id}`).then((r) => (r.ok ? r.json() : null)).then((d) => d && set(d)).catch(() => { });
+        };
+        get("dmrcIncident", "/api/incidents", (d) => setIncident({ ...d, remote: true }));
+        get("dmrcPass", "/api/assistance", setPass);
+    }, []);
+    const L = LINES[line];
+    const stIdx = L.stations.indexOf(watch);
+    const watchOpts = L.stations;
+    const eta = (dir) => {
+        const c = trains[line].filter((t) => t.dir === dir && (stIdx - t.pos) * dir >= 0);
+        if (!c.length)
+            return null;
+        return Math.ceil(Math.min(...c.map((t) => Math.abs(stIdx - t.pos))) / STEP);
+    };
+    const switchLine = (k) => { setLine(k); setWatch(LINES[k].stations.includes(watch) ? watch : LINES[k].stations[0]); };
+    const submitIncident = async (e) => {
+        e.preventDefault();
+        try {
+            const r = await fetch("/api/incidents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+            if (!r.ok)
+                throw new Error();
+            const d = await r.json();
+            localStorage.setItem("dmrcIncident", d.id);
+            setIncident({ ...d, remote: true });
+        }
+        catch {
+            const s = LINES[form.line].stations, i = s.indexOf(form.station);
+            setIncident({ id: `DMRC-${Math.floor(1000 + Math.random() * 9000)}`, next: s[i + 1] || s[i - 1], plat: rnd([1, 2]), step: 0, ...form });
+        }
+    };
+    const STATUS = ["Alert received", "Flying squad alerted", "En route to coach", "Team at coach"];
+    const book = async (e) => {
+        e.preventDefault();
+        if (as.phone.length !== 10)
+            return setAsErr("Enter a 10-digit mobile number.");
+        try {
+            const r = await fetch("/api/assistance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(as) });
+            const d = await r.json();
+            if (!r.ok)
+                return setAsErr(d.error || "Booking failed.");
+            localStorage.setItem("dmrcPass", d.ref);
+            setPass(d);
+        }
+        catch {
+            setPass({ ...as, name: rnd(["Ramesh Kumar", "Sunita Devi", "Imran Khan", "Mohan Lal"]), sid: Math.floor(100 + Math.random() * 800), ref: `WA-${Math.floor(10000 + Math.random() * 89999)}` });
+        }
+        setAsErr("");
+        setModal(false);
+    };
+    const tabs = [["track", "Track", Train], ["route", "Route", RouteIcon], ["safety", "Safety", ShieldAlert], ["assist", "Assistance", Accessibility]];
+    return (React.createElement("div", { className: "h-full w-full flex items-center justify-center sm:p-6" },
+        React.createElement("div", { className: "relative w-full sm:max-w-[390px] phone bg-slate-50 sm:rounded-[44px] sm:border-[10px] border-slate-900 shadow-2xl flex flex-col overflow-hidden" },
+            React.createElement("div", { className: "bg-red-700 text-white px-4 pt-5 pb-3 flex items-center justify-between" },
+                React.createElement("div", null,
+                    React.createElement("div", { className: "text-lg font-bold leading-tight" }, "Delhi Metro"),
+                    React.createElement("div", { className: "text-xs text-red-100" }, online ? "Live data from server" : "Offline demo mode")),
+                React.createElement("div", { className: "flex gap-1" },
+                    React.createElement("span", { className: "w-3 h-3 rounded-full bg-yellow-400" }),
+                    React.createElement("span", { className: "w-3 h-3 rounded-full", style: { background: LINES.blue.hex } }))),
+            React.createElement("div", { className: "flex-1 overflow-y-auto p-4" },
+                tab === "track" && (React.createElement("div", null,
+                    React.createElement("div", { className: "grid grid-cols-2 gap-2 mb-4" }, Object.entries(LINES).map(([k, v]) => (React.createElement("button", { key: k, onClick: () => switchLine(k), className: `flex-1 rounded-xl py-2.5 text-sm font-bold border-2 ${line === k ? "text-white border-transparent" : "bg-white text-slate-700 border-slate-200"}`, style: line === k ? { background: v.hex, color: k === "yellow" ? "#1f1f1f" : "#fff" } : {} }, v.label)))),
+                    React.createElement(Field, { label: "Your station" },
+                        React.createElement(Sel, { value: watch, onChange: setWatch, options: watchOpts })),
+                    [1, -1].map((d) => {
+                        const s = eta(d), end = L.stations[d === 1 ? L.stations.length - 1 : 0];
+                        return (React.createElement("div", { key: d, className: "bg-white rounded-2xl border border-slate-200 p-3 mb-2 flex items-center gap-3" },
+                            React.createElement("div", { className: "w-10 h-10 rounded-lg bg-slate-900 text-white flex flex-col items-center justify-center text-[10px] leading-none" },
+                                React.createElement("span", null, "PF"),
+                                React.createElement("span", { className: "text-base font-bold" }, d === 1 ? 1 : 2)),
+                            React.createElement("div", { className: "flex-1 min-w-0" },
+                                React.createElement("div", { className: "text-xs text-slate-500" }, "Towards"),
+                                React.createElement("div", { className: "text-sm font-semibold truncate" }, end)),
+                            React.createElement("div", { className: "text-right" }, s === null ? React.createElement("span", { className: "text-xs text-slate-500" }, "No train soon") : (React.createElement(React.Fragment, null,
+                                React.createElement("div", { className: "text-lg font-bold text-red-700 tabular-nums" }, s <= 5 ? "Arriving" : fmt(s)),
+                                React.createElement("div", { className: "text-[11px] text-slate-500" },
+                                    "Platform ",
+                                    d === 1 ? 1 : 2))))));
+                    }),
+                    React.createElement("div", { className: "text-sm font-bold mt-4 mb-2" }, "Live line map"),
+                    React.createElement("div", { className: "bg-white rounded-2xl border border-slate-200 p-3" },
+                        React.createElement("div", { className: "relative", style: { height: L.stations.length * ROW } },
+                            React.createElement("div", { className: "absolute w-1.5 rounded-full", style: { left: 21, top: ROW / 2, bottom: ROW / 2, background: L.hex } }),
+                            L.stations.map((s, i) => (React.createElement("div", { key: s, className: "absolute left-0 right-0 flex items-center", style: { top: i * ROW, height: ROW } },
+                                React.createElement("span", { className: "w-4 h-4 rounded-full bg-white border-[3px] ml-3.5 z-10", style: { borderColor: HUB.includes(s) ? "#B91C1C" : L.hex } }),
+                                React.createElement("span", { className: `ml-5 text-sm ${s === watch ? "font-bold text-red-700" : "text-slate-700"}` }, s),
+                                HUB.includes(s) && React.createElement("span", { className: "ml-2 text-[10px] bg-red-100 text-red-700 rounded px-1.5 py-0.5 font-semibold" }, "Interchange")))),
+                            trains[line].map((t) => (React.createElement("div", { key: t.id, className: `absolute z-20 w-7 h-7 rounded-full border-2 border-white shadow flex items-center justify-center text-white ${CROWD[t.crowd][0]}`, style: { left: 10, top: t.pos * ROW + ROW / 2 - 14, transition: "top 1s linear" } },
+                                React.createElement(Train, { size: 14 }))))),
+                        React.createElement("div", { className: "border-t border-slate-100 pt-2 mt-1 space-y-1" }, trains[line].map((t) => (React.createElement("div", { key: t.id, className: "flex items-center text-xs text-slate-700" },
+                            React.createElement("span", { className: `w-2.5 h-2.5 rounded-full mr-2 ${CROWD[t.crowd][0]}` }),
+                            React.createElement("span", { className: "font-semibold w-12" }, t.id),
+                            React.createElement("span", { className: "flex-1 truncate" },
+                                "to ",
+                                L.stations[t.dir === 1 ? L.stations.length - 1 : 0]),
+                            React.createElement("span", { className: "flex items-center gap-1" },
+                                React.createElement(Users, { size: 12 }),
+                                CROWD[t.crowd][1])))))))),
+                tab === "route" && (React.createElement("div", null,
+                    React.createElement(Field, { label: "From" },
+                        React.createElement(Sel, { value: from, onChange: setFrom, options: ALL })),
+                    React.createElement(Field, { label: "To" },
+                        React.createElement(Sel, { value: to, onChange: setTo, options: ALL })),
+                    !routes.length ? (React.createElement("div", { className: "rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm p-3" }, "Pick two different stations to see routes.")) : (React.createElement("div", null,
+                        React.createElement("div", { className: "text-sm font-bold mb-1" }, routes.length === 1 ? "1 route found" : `${routes.length} routes found`),
+                        routes.length === 1 && React.createElement("div", { className: "text-xs text-slate-500 mb-2" }, "Only one rail path links these stations, so the alternatives are the next departures."),
+                        routes.map((r, n) => (React.createElement("div", { key: n, className: "bg-white rounded-2xl border border-slate-200 p-4 mb-3 mt-2" },
+                            React.createElement("div", { className: "flex items-center justify-between mb-3" },
+                                React.createElement("span", { className: `text-xs font-bold rounded-full px-2.5 py-1 ${r.changes ? "bg-red-100 text-red-700" : "bg-green-100 text-green-800"}` }, r.tag),
+                                React.createElement("span", { className: "text-2xl font-bold" },
+                                    "\u20B9",
+                                    r.fare)),
+                            React.createElement("div", { className: "grid grid-cols-3 gap-2 text-center mb-4" }, [["Time", `${r.mins} min`], ["Stations", r.hops], ["Changes", r.changes]].map(([a, b]) => (React.createElement("div", { key: a, className: "bg-slate-50 rounded-xl py-2" },
+                                React.createElement("div", { className: "text-base font-bold" }, b),
+                                React.createElement("div", { className: "text-[11px] text-slate-500" }, a))))),
+                            r.legs.map((l, i) => (React.createElement("div", { key: i },
+                                React.createElement("div", { className: "flex gap-3" },
+                                    React.createElement("div", { className: "w-1.5 rounded-full shrink-0", style: { background: LINES[l.k].hex } }),
+                                    React.createElement("div", { className: "pb-3 text-sm" },
+                                        React.createElement("div", { className: "font-semibold" },
+                                            LINES[l.k].label,
+                                            " towards ",
+                                            l.toward),
+                                        React.createElement("div", { className: "text-slate-600 flex items-center gap-1 flex-wrap" },
+                                            l.a,
+                                            " ",
+                                            React.createElement(ArrowRight, { size: 12 }),
+                                            " ",
+                                            l.b),
+                                        React.createElement("div", { className: "text-xs text-slate-500" },
+                                            l.hops,
+                                            " stations, about ",
+                                            Math.round(l.hops * 2.4),
+                                            " min"))),
+                                i < r.legs.length - 1 && (React.createElement("div", { className: "flex items-center gap-2 text-xs bg-amber-50 border border-amber-200 text-amber-900 rounded-lg px-3 py-2 mb-3" },
+                                    React.createElement(Repeat, { size: 14 }),
+                                    "Change at ",
+                                    l.b,
+                                    ": about 3 min walk to the next platform"))))),
+                            React.createElement("div", { className: "border-t border-slate-100 pt-2" },
+                                React.createElement("div", { className: "text-xs font-semibold text-slate-600 mb-1" },
+                                    "Next trains from ",
+                                    from),
+                                nextTrains(r.legs[0]).map((t) => (React.createElement("div", { key: t.id, className: "flex justify-between text-xs py-0.5" },
+                                    React.createElement("span", { className: "font-semibold w-12" }, t.id),
+                                    React.createElement("span", { className: "flex-1" },
+                                        "leaves in ",
+                                        fmt(t.s)),
+                                    React.createElement("span", { className: "text-slate-500" },
+                                        "reach ",
+                                        to,
+                                        " ",
+                                        new Date(Date.now() + (t.s + r.mins * 60) * 1000).toTimeString().slice(0, 5))))))))))))),
+                tab === "safety" && (React.createElement("div", null,
+                    incident && (React.createElement("div", { className: "mb-4" },
+                        React.createElement("div", { className: "rounded-xl bg-red-700 text-white text-sm p-3 mb-2" },
+                            "Incident #",
+                            incident.id,
+                            " logged. Dispatched to CISF Quick Response Team at ",
+                            incident.next,
+                            " Platform ",
+                            incident.plat,
+                            ". Flying squad alerted."),
+                        React.createElement("div", { className: "bg-white border border-slate-200 rounded-2xl p-3" },
+                            React.createElement("div", { className: "flex justify-between items-center mb-2" },
+                                React.createElement("span", { className: "font-bold text-sm" }, incident.id),
+                                React.createElement("span", { className: `text-xs font-bold rounded-full px-2 py-1 ${incident.step === 3 ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-900"}` }, STATUS[incident.step])),
+                            React.createElement("div", { className: "text-xs text-slate-600 mb-2" },
+                                incident.cat,
+                                ", ",
+                                incident.coach,
+                                " #",
+                                incident.no,
+                                ", ",
+                                incident.station,
+                                " (",
+                                LINES[incident.line].label,
+                                ")",
+                                incident.photo ? ", photo attached" : ""),
+                            React.createElement("div", { className: "flex gap-1" }, STATUS.map((s, i) => React.createElement("div", { key: s, className: `h-1.5 flex-1 rounded-full ${i <= incident.step ? "bg-red-600" : "bg-slate-200"}` })))))),
+                    React.createElement("form", { onSubmit: submitIncident },
+                        React.createElement("div", { className: "grid grid-cols-2 gap-2" },
+                            React.createElement(Field, { label: "Line" },
+                                React.createElement(Sel, { value: LINES[form.line].label, onChange: (v) => { const k = Object.keys(LINES).find((x) => LINES[x].label === v); setForm({ ...form, line: k, station: LINES[k].stations[0] }); }, options: Object.values(LINES).map((l) => l.label) })),
+                            React.createElement(Field, { label: "Coach number" },
+                                React.createElement(Sel, { value: form.no, onChange: (v) => setForm({ ...form, no: v }), options: ["1", "2", "3", "4", "5", "6", "7", "8"] }))),
+                        React.createElement(Field, { label: "Current station" },
+                            React.createElement(Sel, { value: form.station, onChange: (v) => setForm({ ...form, station: v }), options: LINES[form.line].stations })),
+                        React.createElement(Field, { label: "Coach type" },
+                            React.createElement(Sel, { value: form.coach, onChange: (v) => setForm({ ...form, coach: v }), options: ["Women’s Reserved Coach", "General"] })),
+                        React.createElement(Field, { label: "Incident category" },
+                            React.createElement(Sel, { value: form.cat, onChange: (v) => setForm({ ...form, cat: v }), options: ["Men sitting in Women’s coach", "Harassment", "Pickpocketing", "Medical Emergency"] })),
+                        React.createElement("button", { type: "button", onClick: () => setForm({ ...form, photo: !form.photo }), className: `w-full mb-3 rounded-xl border-2 border-dashed py-2.5 text-sm font-semibold flex items-center justify-center gap-2 ${form.photo ? "border-green-600 text-green-700 bg-green-50" : "border-slate-300 text-slate-600"}` }, form.photo ? React.createElement(React.Fragment, null,
+                            React.createElement(CheckCircle2, { size: 16 }),
+                            "photo_evidence.jpg attached") : React.createElement(React.Fragment, null,
+                            React.createElement(Camera, { size: 16 }),
+                            "Snap photo / mock upload")),
+                        React.createElement("button", { type: "submit", className: "w-full rounded-xl bg-red-700 text-white font-bold py-3 flex items-center justify-center gap-2" },
+                            React.createElement(ShieldAlert, { size: 18 }),
+                            "Report incident")))),
+                tab === "assist" && (React.createElement("div", null,
+                    React.createElement("div", { className: "bg-white border border-slate-200 rounded-2xl p-4 mb-4" },
+                        React.createElement("div", { className: "font-bold mb-1" }, "Wheelchair and special assistance"),
+                        React.createElement("p", { className: "text-sm text-slate-600 mb-3" }, "Book a station attendant and wheelchair waiting for you at your arrival gate."),
+                        React.createElement("button", { onClick: () => setModal(true), className: "w-full rounded-xl bg-blue-700 text-white font-bold py-3" }, "Book assistance")),
+                    pass && (React.createElement("div", { className: "rounded-2xl border-2 border-green-600 bg-white overflow-hidden" },
+                        React.createElement("div", { className: "bg-green-600 text-white px-4 py-2 flex justify-between text-sm font-bold" },
+                            React.createElement("span", null, "Assistance pass"),
+                            React.createElement("span", null, pass.ref)),
+                        React.createElement("div", { className: "p-4 text-sm space-y-1.5" },
+                            React.createElement("div", { className: "flex items-center gap-2 text-green-700 font-semibold" },
+                                React.createElement(CheckCircle2, { size: 16 }),
+                                "Wheelchair ready at ",
+                                pass.gate),
+                            React.createElement("div", null,
+                                React.createElement("span", { className: "text-slate-500" }, "Station:"),
+                                " ",
+                                pass.station),
+                            React.createElement("div", { className: "flex items-center gap-1" },
+                                React.createElement(Clock, { size: 14, className: "text-slate-500" }),
+                                " Arrival ",
+                                pass.time),
+                            React.createElement("div", null,
+                                React.createElement("span", { className: "text-slate-500" }, "Attendant:"),
+                                " ",
+                                pass.name,
+                                " - Staff ID #",
+                                pass.sid),
+                            React.createElement("a", { href: "tel:155370", className: "mt-2 w-full rounded-xl bg-slate-900 text-white font-semibold py-2.5 flex items-center justify-center gap-2" },
+                                React.createElement(Phone, { size: 16 }),
+                                "Contact attendant"))))))),
+            modal && (React.createElement("div", { className: "absolute inset-0 z-50 bg-black/50 flex items-end" },
+                React.createElement("form", { onSubmit: book, className: "w-full bg-white rounded-t-3xl p-5 max-h-full overflow-y-auto" },
+                    React.createElement("div", { className: "flex justify-between items-center mb-3" },
+                        React.createElement("div", { className: "font-bold text-lg" }, "Book assistance"),
+                        React.createElement("button", { type: "button", "aria-label": "Close", onClick: () => setModal(false) },
+                            React.createElement(X, null))),
+                    React.createElement(Field, { label: "Station" },
+                        React.createElement(Sel, { value: as.station, onChange: (v) => setAs({ ...as, station: v }), options: ALL })),
+                    React.createElement("div", { className: "grid grid-cols-2 gap-2" },
+                        React.createElement(Field, { label: "Arrival gate" },
+                            React.createElement(Sel, { value: as.gate, onChange: (v) => setAs({ ...as, gate: v }), options: ["Gate 1", "Gate 2", "Gate 3", "Gate 4"] })),
+                        React.createElement(Field, { label: "Arrival time" },
+                            React.createElement("input", { type: "time", className: cls, value: as.time, onChange: (e) => setAs({ ...as, time: e.target.value }), required: true }))),
+                    React.createElement(Field, { label: "Passenger phone number" },
+                        React.createElement("input", { inputMode: "numeric", placeholder: "10-digit mobile", className: cls, value: as.phone, onChange: (e) => setAs({ ...as, phone: e.target.value.replace(/\D/g, "").slice(0, 10) }) })),
+                    asErr && React.createElement("div", { className: "text-sm text-red-700 mb-2" }, asErr),
+                    React.createElement("button", { type: "submit", className: "w-full rounded-xl bg-blue-700 text-white font-bold py-3" }, "Confirm booking")))),
+            React.createElement("nav", { className: "grid grid-cols-4 bg-white border-t border-slate-200" }, tabs.map(([k, n, Icon]) => (React.createElement("button", { key: k, onClick: () => setTab(k), className: `py-2.5 flex flex-col items-center gap-0.5 text-[11px] font-semibold ${tab === k ? "text-red-700" : "text-slate-500"}` },
+                React.createElement(Icon, { size: 20 }),
+                n)))))));
+}
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(DelhiMetroApp));
+</script>
+</body>
+</html>
